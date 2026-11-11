@@ -9,24 +9,20 @@ import painel
 
 
 MARTS = (
-    "vendas_mensais",
-    "top_categorias",
+    "vendas_totais_mensais",
+    "trimestre",
     "entrega_no_prazo",
     "nota_por_categoria",
-    "recompra",
-    "ticket_medio_por_estado",
+    "venda_por_estado",
     "mix_pagamento",
-    "vendedores_pareto",
+    "vendedores_state",
     "kpis",
-    "clientes_por_uf",
+    "clientes_unicos_por_mes",
 )
 
 
 def _valores_cartoes(dados):
     kpis = dados["kpis"].iloc[0]
-    clientes_uma_compra = dados["recompra"].loc[
-        dados["recompra"]["pedidos_por_cliente"] == 1, "pct_clientes"
-    ].iloc[0]
     return (
         ("Ticket médio", painel.reais(kpis["ticket_medio"])),
         (
@@ -34,7 +30,6 @@ def _valores_cartoes(dados):
             painel.pct(kpis["pct_cancelados"], 2),
         ),
         ("Peso do frete", painel.pct(kpis["pct_frete"], 1)),
-        ("Recompra", painel.pct(100 - clientes_uma_compra, 2)),
         (
             "No prazo",
             painel.pct(dados["entrega_no_prazo"].iloc[0]["pct_no_prazo"], 1),
@@ -69,25 +64,25 @@ def gerar_relatorio() -> Path:
 
     inicio = pd.Timestamp(date(2017, 1, 1))
     fim = pd.Timestamp(date(2018, 8, 1))
-    vendas = dados["vendas_mensais"]
+    vendas = dados["vendas_totais_mensais"]
     if inicio not in vendas["mes"].tolist() or fim not in vendas["mes"].tolist():
         raise ValueError(
-            "O mart vendas_mensais não contém jan/2017 e ago/2018."
+            "O mart vendas_totais_mensais não contém jan/2017 e ago/2018."
         )
     vendas_periodo = vendas.loc[vendas["mes"].between(inicio, fim)]
     figura_mensal = painel.grafico_vendas_mensais(vendas_periodo)
     figura_mensal.update_layout(
-        title="01 · Faturamento mensal (jan/2017 a ago/2018)"
+        title="13 · Faturamento mensal (jan/2017 a ago/2018)"
     )
 
     figuras = (
         figura_mensal,
-        painel.grafico_top_categorias(dados["top_categorias"]),
+        painel.grafico_vendas_trimestrais(dados["trimestre"]),
         painel.grafico_mix_pagamento(dados["mix_pagamento"]),
-        painel.grafico_ticket_por_uf(dados["ticket_medio_por_estado"]),
-        painel.grafico_clientes_por_uf(dados["clientes_por_uf"]),
+        painel.grafico_receita_por_estado(dados["venda_por_estado"]),
+        painel.grafico_clientes_unicos_por_mes(dados["clientes_unicos_por_mes"]),
         painel.grafico_nota_por_categoria(dados["nota_por_categoria"]),
-        painel.grafico_concentracao_vendedores(dados["vendedores_pareto"]),
+        painel.grafico_vendedores_por_estado(dados["vendedores_state"]),
     )
     graficos = [
         _html_grafico(figura, f"g{indice:02d}", indice == 1)
@@ -107,7 +102,7 @@ def gerar_relatorio() -> Path:
     body {{ margin: 0; padding: 28px; }}
     main {{ max-width: 1600px; margin: 0 auto; }}
     h1 {{ margin: 0 0 20px; font-size: 28px; }}
-    .cartoes {{ display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }}
+    .cartoes {{ display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }}
     .cartao, .grafico {{ min-width: 0; background: #fff; border: 1px solid #e4e9ee; border-radius: 8px; }}
     .cartao {{ padding: 16px; }}
     .rotulo {{ min-height: 36px; color: #52616d; font-size: 13px; }}
@@ -118,7 +113,7 @@ def gerar_relatorio() -> Path:
     .linha-tripla .grafico {{ align-self: stretch; }}
     footer {{ padding: 4px 0 16px; color: #52616d; font-size: 13px; text-align: right; }}
     @media (max-width: 1050px) {{
-      .cartoes {{ grid-template-columns: repeat(4, minmax(0, 1fr)); }}
+      .cartoes {{ grid-template-columns: repeat(3, minmax(0, 1fr)); }}
       .linha-tripla {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
     }}
     @media (max-width: 650px) {{

@@ -6,13 +6,13 @@ import streamlit as st
 
 from painel import (
     MartsAusentesError,
-    grafico_clientes_por_uf,
-    grafico_concentracao_vendedores,
+    grafico_clientes_unicos_por_mes,
     grafico_mix_pagamento,
     grafico_nota_por_categoria,
-    grafico_ticket_por_uf,
-    grafico_top_categorias,
+    grafico_receita_por_estado,
     grafico_vendas_mensais,
+    grafico_vendas_trimestrais,
+    grafico_vendedores_por_estado,
     ler,
     numero,
     pct,
@@ -21,16 +21,15 @@ from painel import (
 
 
 MARTS = (
-    "vendas_mensais",
-    "top_categorias",
+    "vendas_totais_mensais",
+    "trimestre",
     "entrega_no_prazo",
     "nota_por_categoria",
-    "recompra",
-    "ticket_medio_por_estado",
+    "venda_por_estado",
     "mix_pagamento",
-    "vendedores_pareto",
+    "vendedores_state",
     "kpis",
-    "clientes_por_uf",
+    "clientes_unicos_por_mes",
 )
 
 
@@ -68,12 +67,13 @@ cabecalho, filtro = st.columns([1.5, 1])
 with cabecalho:
     st.title("Olist · visão da operação")
 
-meses = dados["vendas_mensais"].sort_values("mes")["mes"].tolist()
+vendas = dados["vendas_totais_mensais"].sort_values("mes")
+meses = vendas["mes"].tolist()
 inicio_padrao = pd.Timestamp(date(2017, 1, 1))
 fim_padrao = pd.Timestamp(date(2018, 8, 1))
 if inicio_padrao not in meses or fim_padrao not in meses:
     st.error(
-        "O mart `vendas_mensais` não contém os meses padrão "
+        "O mart `vendas_totais_mensais` não contém os meses padrão "
         "jan/2017 e ago/2018. Gere as tabelas com "
         "`uv run python -m pipeline.marts`."
     )
@@ -89,14 +89,10 @@ with filtro:
     st.caption("os cartões valem para o período inteiro")
 
 kpis = dados["kpis"].iloc[0]
-clientes_uma_compra = dados["recompra"].loc[
-    dados["recompra"]["pedidos_por_cliente"] == 1, "pct_clientes"
-].iloc[0]
 valores_cartoes = (
     ("Ticket médio", reais(kpis["ticket_medio"])),
     ("Cancelados · % de todos os pedidos", pct(kpis["pct_cancelados"], 2)),
     ("Peso do frete", pct(kpis["pct_frete"], 1)),
-    ("Recompra", pct(100 - clientes_uma_compra, 2)),
     (
         "No prazo",
         pct(dados["entrega_no_prazo"].iloc[0]["pct_no_prazo"], 1),
@@ -105,30 +101,34 @@ valores_cartoes = (
     ("Nota média", numero(kpis["nota_media"], 2)),
 )
 
-cartoes = st.columns(7)
+cartoes = st.columns(6)
 for coluna, (rotulo, valor) in zip(cartoes, valores_cartoes):
     coluna.metric(rotulo, valor)
 
 inicio, fim = periodo
-vendas_periodo = dados["vendas_mensais"].loc[
-    dados["vendas_mensais"]["mes"].between(inicio, fim)
-]
+vendas_periodo = vendas.loc[vendas["mes"].between(inicio, fim)]
 st.plotly_chart(grafico_vendas_mensais(vendas_periodo), width="stretch")
 
 coluna_1, coluna_2, coluna_3 = st.columns(3)
 with coluna_1:
-    st.plotly_chart(grafico_top_categorias(dados["top_categorias"]), width="stretch")
+    st.plotly_chart(
+        grafico_vendas_trimestrais(dados["trimestre"]),
+        width="stretch",
+    )
 with coluna_2:
     st.plotly_chart(grafico_mix_pagamento(dados["mix_pagamento"]), width="stretch")
 with coluna_3:
     st.plotly_chart(
-        grafico_ticket_por_uf(dados["ticket_medio_por_estado"]),
+        grafico_receita_por_estado(dados["venda_por_estado"]),
         width="stretch",
     )
 
 coluna_1, coluna_2, coluna_3 = st.columns(3)
 with coluna_1:
-    st.plotly_chart(grafico_clientes_por_uf(dados["clientes_por_uf"]), width="stretch")
+    st.plotly_chart(
+        grafico_clientes_unicos_por_mes(dados["clientes_unicos_por_mes"]),
+        width="stretch",
+    )
 with coluna_2:
     st.plotly_chart(
         grafico_nota_por_categoria(dados["nota_por_categoria"]),
@@ -136,6 +136,6 @@ with coluna_2:
     )
 with coluna_3:
     st.plotly_chart(
-        grafico_concentracao_vendedores(dados["vendedores_pareto"]),
+        grafico_vendedores_por_estado(dados["vendedores_state"]),
         width="stretch",
     )

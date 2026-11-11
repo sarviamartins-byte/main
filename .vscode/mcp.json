@@ -2,8 +2,9 @@
   "servers": {
     "duckdb": {
       "type": "stdio",
-      "command": "uvx",
-      "args": ["mcp-server-motherduck", "--db-path", "${workspaceFolder}/olist.duckdb"]
+      "command": "uv",
+      "args": ["run", "python", "-m", "pipeline.mcp"],
+      "cwd": "${workspaceFolder}"
     }
   }
 }

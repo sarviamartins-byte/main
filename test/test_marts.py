@@ -222,7 +222,7 @@ def test_sql_01_conta_pedido_com_dois_itens_uma_vez_e_ignora_cancelado(
         )
         conexao.execute(
             "CREATE TABLE refined.itens_pedido "
-            "(pedido_id VARCHAR, preco DECIMAL(10,2))"
+            "(pedido_id VARCHAR, vendedor_id VARCHAR, preco DECIMAL(10,2))"
         )
         # Um pedido válido e outro cancelado isolam a regra do mart mensal.
         conexao.execute(
@@ -233,8 +233,9 @@ def test_sql_01_conta_pedido_com_dois_itens_uma_vez_e_ignora_cancelado(
         # Dois itens pertencem ao mesmo pedido; o cancelado tem receita a excluir.
         conexao.execute(
             "INSERT INTO refined.itens_pedido VALUES "
-            "('dois-itens', 10.00), ('dois-itens', 15.00), "
-            "('cancelado', 90.00)"
+            "('dois-itens', 'vendedor-1', 10.00), "
+            "('dois-itens', 'vendedor-1', 15.00), "
+            "('cancelado', 'vendedor-1', 90.00)"
         )
 
         consulta = (
@@ -245,7 +246,9 @@ def test_sql_01_conta_pedido_com_dois_itens_uma_vez_e_ignora_cancelado(
         )
         resultado = conexao.execute(consulta.read_text(encoding="utf-8")).fetchall()
 
-        assert resultado == [(date(2017, 1, 1), 1, Decimal("25.00"))]
+        assert resultado == [
+            (date(2017, 1, 1), "vendedor-1", 1, Decimal("25.00"))
+        ]
     finally:
         conexao.close()
 
@@ -278,5 +281,85 @@ def test_sql_03_entrega_na_tarde_do_dia_previsto_conta_no_prazo(tmp_path):
         resultado = conexao.execute(consulta.read_text(encoding="utf-8")).fetchone()
 
         assert resultado == (2, 1, 1, Decimal("50.0"))
+    finally:
+        conexao.close()
+
+
+def test_sql_13_resume_receita_mensal_e_conta_pedido_com_varios_itens_uma_vez(
+    tmp_path,
+):
+    conexao = duckdb.connect(str(tmp_path / "sql_13.duckdb"))
+    try:
+        conexao.execute("CREATE SCHEMA refined")
+        conexao.execute(
+            "CREATE TABLE refined.pedidos "
+            "(pedido_id VARCHAR, data_compra TIMESTAMP, status VARCHAR)"
+        )
+        conexao.execute(
+            "CREATE TABLE refined.itens_pedido "
+            "(pedido_id VARCHAR, preco DECIMAL(10,2))"
+        )
+        # Dois itens do mesmo pedido verificam receita somada e pedido contado uma vez.
+        conexao.execute(
+            "INSERT INTO refined.pedidos VALUES "
+            "('valido', '2017-01-10 09:00:00', 'delivered'), "
+            "('cancelado', '2017-01-11 09:00:00', 'canceled')"
+        )
+        conexao.execute(
+            "INSERT INTO refined.itens_pedido VALUES "
+            "('valido', 10.00), ('valido', 15.00), ('cancelado', 90.00)"
+        )
+        consulta = (
+            Path(__file__).resolve().parents[1]
+            / "sql"
+            / "marts"
+            / "13_vendas_totais_mensais.sql"
+        )
+
+        resultado = conexao.execute(
+            consulta.read_text(encoding="utf-8")
+        ).fetchall()
+
+        assert resultado == [(date(2017, 1, 1), 1, Decimal("25.00"))]
+    finally:
+        conexao.close()
+
+
+def test_sql_14_conta_cliente_id_distinto_no_mes_e_ignora_cancelado(tmp_path):
+    conexao = duckdb.connect(str(tmp_path / "sql_14.duckdb"))
+    try:
+        conexao.execute("CREATE SCHEMA refined")
+        conexao.execute(
+            "CREATE TABLE refined.pedidos "
+            "(pedido_id VARCHAR, cliente_id VARCHAR, data_compra TIMESTAMP, "
+            "status VARCHAR)"
+        )
+        conexao.execute(
+            "CREATE TABLE refined.itens_pedido (pedido_id VARCHAR)"
+        )
+        # Cliente repetido em dois pedidos conta uma vez; outro cliente conta também.
+        conexao.execute(
+            "INSERT INTO refined.pedidos VALUES "
+            "('p1', 'c1', '2017-01-10 09:00:00', 'delivered'), "
+            "('p2', 'c1', '2017-01-12 09:00:00', 'delivered'), "
+            "('p3', 'c2', '2017-01-13 09:00:00', 'delivered'), "
+            "('p4', 'c3', '2017-01-14 09:00:00', 'canceled')"
+        )
+        conexao.execute(
+            "INSERT INTO refined.itens_pedido VALUES "
+            "('p1'), ('p2'), ('p3'), ('p4')"
+        )
+        consulta = (
+            Path(__file__).resolve().parents[1]
+            / "sql"
+            / "marts"
+            / "14_clientes_unicos_por_mes.sql"
+        )
+
+        resultado = conexao.execute(
+            consulta.read_text(encoding="utf-8")
+        ).fetchall()
+
+        assert resultado == [(date(2017, 1, 1), 2)]
     finally:
         conexao.close()

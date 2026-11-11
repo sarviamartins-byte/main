@@ -65,6 +65,10 @@ uv run python ui.py
 
 A interface fica disponível em <http://localhost:4213>. Encerre o processo com `Ctrl+C`. A primeira execução pode precisar baixar a extensão `ui` do DuckDB. Feche a interface antes de executar novamente qualquer etapa que escreva no banco, pois o DuckDB mantém um lock exclusivo no arquivo.
 
+## MCP DuckDB
+
+O workspace configura um servidor MCP local em `.vscode/mcp.json`, executado com `uv run python -m pipeline.mcp`. Ele usa a mesma versão de DuckDB do projeto, abre `olist.duckdb` em modo somente leitura e desabilita acesso a arquivos externos. A ferramenta SQL aceita apenas uma instrução `SELECT`. Ao alterar dependências ou a configuração MCP, reinicie o servidor MCP do workspace para aplicar as mudanças.
+
 ## Pipeline e dados
 
 O fluxo usa três schemas no banco:
@@ -79,18 +83,20 @@ As fontes em `raw/` cobrem pedidos, itens, pagamentos, avaliações, clientes, v
 
 As consultas SQL criam os seguintes marts:
 
-1. `vendas_mensais` — pedidos e receita por mês.
-2. `top_categorias` — receita, itens e pedidos por categoria, ordenados por receita.
+1. `vendas_mensais` — pedidos e receita por mês e vendedor.
+2. `trimestre` — pedidos e receita por trimestre.
 3. `entrega_no_prazo` — desempenho de entregas em relação à data prevista.
 4. `nota_por_categoria` — avaliação média por categoria.
-5. `recompra` — recorrência de compra dos clientes.
+5. `venda_por_estado` — pedidos e receita por estado do cliente.
 6. `ticket_medio_por_estado` — ticket médio por estado.
 7. `mix_pagamento` — distribuição dos meios de pagamento.
 8. `nota_por_prazo` — avaliações em relação ao prazo de entrega.
-9. `vendedores_pareto` — concentração de receita entre vendedores.
+9. `vendedores_state` — contagem de vendedores por estado, consultada de `raw.vendedores`.
 10. `tempo_entrega_por_estado` — tempo de entrega por estado.
 11. `kpis` — indicadores gerais da operação.
-12. `clientes_por_uf` — distribuição de clientes por estado.
+12. `clientes_por_mes` — pedidos e receita mensal por cliente.
+13. `vendas_totais_mensais` — receita e pedidos distintos por mês, sem separar vendedores.
+14. `clientes_unicos_por_mes` — cadastros de clientes distintos por mês (`cliente_id`).
 
 ## Estrutura do projeto
 

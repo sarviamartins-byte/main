@@ -66,26 +66,44 @@ def test_todas_as_funcoes_de_grafico_retorna_figura_com_um_ponto_por_linha():
             painel.grafico_vendas_mensais,
             pd.DataFrame(
                 {
-                    "mes": [date(2020, 1, 1), date(2020, 2, 1)],
+                    "mes": [date(2017, 1, 1), date(2017, 2, 1)],
                     "receita": [10, 20],
                 }
             ),
         ),
         (
-            painel.grafico_top_categorias,
-            pd.DataFrame({"categoria": ["a", "b"], "receita": [10, 20]}),
+            painel.grafico_vendas_trimestrais,
+            pd.DataFrame(
+                {
+                    "trimestre": [date(2020, 1, 1), date(2020, 4, 1)],
+                    "receita": [10, 20],
+                }
+            ),
         ),
         (
             painel.grafico_mix_pagamento,
             pd.DataFrame({"tipo": ["cartao", "pix"], "pct_valor": [60, 40]}),
         ),
         (
-            painel.grafico_ticket_por_uf,
-            pd.DataFrame({"uf": ["AA", "BB"], "ticket_medio": [10, 20]}),
+            painel.grafico_receita_por_estado,
+            pd.DataFrame(
+                {"estado": ["AA", "BB"], "receita_total": [10, 20]}
+            ),
         ),
         (
-            painel.grafico_clientes_por_uf,
-            pd.DataFrame({"uf": ["AA", "BB"], "clientes": [10, 20]}),
+            painel.grafico_vendedores_por_estado,
+            pd.DataFrame(
+                {"estado": ["AA", "BB"], "total_vendedores": [10, 20]}
+            ),
+        ),
+        (
+            painel.grafico_clientes_unicos_por_mes,
+            pd.DataFrame(
+                {
+                    "mes": [date(2020, 1, 1), date(2020, 2, 1)],
+                    "clientes_unicos": [10, 20],
+                }
+            ),
         ),
         (
             painel.grafico_nota_por_categoria,
@@ -95,12 +113,6 @@ def test_todas_as_funcoes_de_grafico_retorna_figura_com_um_ponto_por_linha():
                     "nota_media": [4.1, 3.8],
                     "posicao_pior": [2, 1],
                 }
-            ),
-        ),
-        (
-            painel.grafico_concentracao_vendedores,
-            pd.DataFrame(
-                {"posicao": [1, 2], "pct_acumulado": [60, 100]}
             ),
         ),
     )

@@ -1,77 +1,76 @@
-"""Spec do painel analítico Olist.
+"""Spec do painel Olist alinhada aos marts atuais em ``sql/marts/*.sql``.
 
 LEITURA
 -------
-``ler(marts)`` retorna um dicionário nome -> DataFrame. Para cada nome, a
-única consulta é ``SELECT * FROM marts.<nome>``. A conexão usa
-``duckdb.connect("olist.duckdb", read_only=True)`` e é aberta e fechada dentro
-da função: uma conexão persistente mantém um lock e impede o pipeline de
-escrever no banco enquanto o painel está aberto. O app lê os marts
-``vendas_mensais``, ``top_categorias``, ``entrega_no_prazo``,
-``nota_por_categoria``, ``recompra``, ``ticket_medio_por_estado``,
-``mix_pagamento``, ``vendedores_pareto``, ``kpis`` e ``clientes_por_uf``.
+``ler(marts)`` retorna nome -> DataFrame e executa somente
+``SELECT * FROM marts.<nome>`` para cada nome solicitado. Usa
+``duckdb.connect("olist.duckdb", read_only=True)`` e fecha a conexão dentro
+da função para não manter o lock que impediria o pipeline de gravar.
+O app usa ``vendas_totais_mensais``, ``trimestre``, ``entrega_no_prazo``,
+``nota_por_categoria``, ``venda_por_estado``, ``mix_pagamento``,
+``vendedores_state``, ``kpis`` e ``clientes_unicos_por_mes``. Os marts
+detalhados ``vendas_mensais`` (mês-vendedor) e ``clientes_por_mes``
+(mês-cliente) permanecem no banco, mas não são plotados: agregá-los na camada
+de apresentação violaria a regra de não calcular. O mart 09 lê
+``raw.vendedores`` conforme sua consulta SQL atual; essa origem é uma
+exceção ao padrão das demais consultas.
 
 REGRAS DE NEGÓCIO
 -----------------
-O painel não agrega dados nem deriva métricas: só apresenta valores existentes
-nos marts. Não há agregações, junções ou operações aritméticas entre colunas.
-Assim, cada novo número exige sua definição no SQL, que é a fonte de verdade.
-A única exceção é a recompra, exibida como 100 menos ``pct_clientes`` da linha
-``pedidos_por_cliente = 1`` do mart ``recompra``.
+O painel não agrega nem deriva valores: apresenta as colunas existentes,
+permitindo ordenar e filtrar linhas para a visualização. As novas métricas e
+grãos são definidos em SQL. Como o mart ``recompra`` foi substituído, não há
+cartão de recompra: o painel mostra somente os seis indicadores disponíveis,
+sem estimar um indicador a partir de outros dados.
 
 LAYOUT
 ------
-O app usa ``layout="wide"``. No cabeçalho, o título fica à esquerda e o filtro
-de período à direita. A primeira faixa contém, nesta ordem, Ticket médio
-(``kpis.ticket_medio``, reais), Cancelados (``kpis.pct_cancelados``, percentual
-de todos os pedidos, duas casas), Peso do frete (``kpis.pct_frete``, uma casa),
-Recompra (duas casas), No prazo (``entrega_no_prazo.pct_no_prazo``, uma casa),
-Dias até entregar (``kpis.dias_entrega``, uma casa) e Nota média
-(``kpis.nota_media``, duas casas). A seguir há faturamento mensal em linha com
-marcadores, depois receita por categoria (dez maiores, barras horizontais,
-maior no topo), mix de pagamento (barras por ``pct_valor``) e ticket médio por
-UF (barras horizontais, maior no topo). A última faixa mostra clientes por UF
-(barras horizontais, maior no topo), as dez primeiras notas por
-``posicao_pior`` (pontos, pior no topo) e concentração de vendedores (linha de
-``pct_acumulado`` por ``posicao``, com linha tracejada em 80).
+O app usa ``layout="wide"``. No cabeçalho, ficam o título à esquerda e o
+filtro de período à direita. A primeira faixa tem seis cartões, nesta ordem:
+Ticket médio (``kpis.ticket_medio``, reais), Cancelados (``kpis.pct_cancelados``,
+percentual de todos os pedidos, duas casas), Peso do frete
+(``kpis.pct_frete``, uma casa), No prazo
+(``entrega_no_prazo.pct_no_prazo``, uma casa), Dias até entregar
+(``kpis.dias_entrega``, uma casa) e Nota média (``kpis.nota_media``, duas
+casas).
 
-Cada gráfico tem título com o número do mart, uma cor de dados e eixos com
-unidades. A referência tracejada de 80% é a exceção visual necessária no
-gráfico de vendedores. O Streamlit usa ``width="stretch"`` para todos os
-gráficos.
+A faixa seguinte mostra faturamento mensal (``vendas_totais_mensais``, linha
+com marcadores). A terceira faixa contém faturamento trimestral
+(``trimestre``, linha com marcadores), mix de pagamento (``mix_pagamento``,
+barras por ``pct_valor``) e receita por estado (``venda_por_estado``, barras
+horizontais, maior no topo). A quarta faixa contém clientes por mês
+(``clientes_unicos_por_mes``, linha com marcadores, distintos por
+``cliente_id``), nota por categoria (dez primeiras por ``posicao_pior``,
+pontos, pior no topo) e quantidade de vendedores por estado
+(``vendedores_state``, barras horizontais, maior no topo). Os marts mensais
+resumidos são SQL separado para evitar agregações na apresentação. As
+substituições não reconstroem top categorias, recompra, ticket por UF,
+clientes por UF ou Pareto.
 
-FORMATAÇÃO E FIGURAS
---------------------
+Cada gráfico tem o número e o nome do mart no título, uma cor de dados e
+unidades nos eixos. As funções de gráfico recebem DataFrame e devolvem figura
+Plotly, sem Streamlit ou conexão ao banco, para serem reutilizadas no relatório.
+O app usa ``width="stretch"``.
+
+FORMATAÇÃO
+----------
 ``reais(valor, casas=2)``, ``pct(valor, casas=1)`` e
-``numero(valor, casas=0)`` são funções puras com separadores fixos: ponto para
-milhar e vírgula para decimal, sem depender do locale da máquina. Exemplos:
-``R$ 1.003.862,14``, ``93,2%`` e ``96.470``. Cada gráfico é construído por
-uma função que recebe um DataFrame e devolve uma figura Plotly; isso permite
-reutilizá-la em relatórios HTML.
+``numero(valor, casas=0)`` são funções puras com milhar separado por ponto e
+decimal por vírgula, sem depender do locale. Isso mantém o resultado igual
+entre máquinas.
 
 FILTRO
 ------
-O ``st.select_slider`` oferece os meses existentes em ``vendas_mensais`` e
-abre de janeiro de 2017 a agosto de 2018: 20 meses, dos 24 disponíveis quando
-o seletor cobre as duas pontas. Ele filtra apenas as linhas do gráfico mensal;
-cartões e demais gráficos sempre representam o período inteiro, como informa
-a legenda abaixo do filtro, evitando recalcular métricas fora do SQL.
+O ``st.select_slider`` oferece os meses de ``vendas_totais_mensais``, com
+padrão jan/2017 a ago/2018. O intervalo filtra somente as linhas do gráfico
+de faturamento mensal; cartões e outros gráficos cobrem o período inteiro. A
+página informa isso abaixo do filtro.
 
 CACHE E FALHAS
 --------------
-A leitura é cacheada com ``st.cache_data`` e o botão "Recarregar dados" limpa
-esse cache. Se ``olist.duckdb`` ou qualquer mart usado pelo painel faltar, o
-app informa o que está ausente, mostra ``uv run python -m pipeline.marts`` e
-interrompe a página com ``st.stop()``.
-
-CRITÉRIOS DE ACEITE
--------------------
-Os cartões mostram ``R$ 137,42``, ``0,63%``, ``14,2%``, ``3,04%``, ``93,2%``,
-``12,5`` e ``4,09``. O gráfico mensal abre com 20 linhas e pode mostrar 24.
-No top 10 de categorias, ``health_beauty`` aparece no topo; em notas,
-``office_furniture``; no ticket por UF, ``PB`` fica no topo e ``SP`` embaixo.
-Com o painel ativo, ``uv run python -m pipeline.marts`` deve gravar sem erro
-de lock.
+A leitura usa ``st.cache_data`` e o botão "Recarregar dados" limpa o cache.
+Se ``olist.duckdb`` ou qualquer mart usado faltar, o app informa os nomes,
+mostra ``uv run python -m pipeline.marts`` e chama ``st.stop()``.
 """
 
 from collections.abc import Iterable
@@ -148,7 +147,7 @@ def grafico_vendas_mensais(df: pd.DataFrame) -> go.Figure:
         x="mes",
         y="receita",
         markers=True,
-        title="01 · Faturamento mensal",
+        title="13 · Faturamento mensal",
         labels={"mes": "Mês", "receita": "Receita (R$)"},
         color_discrete_sequence=[COR_DADOS],
     )
@@ -156,19 +155,29 @@ def grafico_vendas_mensais(df: pd.DataFrame) -> go.Figure:
     return _ajustar_figura(figura)
 
 
-def grafico_top_categorias(df: pd.DataFrame) -> go.Figure:
-    top = (
-        df.sort_values("receita", ascending=False)
-        .head(10)
-        .sort_values("receita", ascending=True)
+def grafico_vendas_trimestrais(df: pd.DataFrame) -> go.Figure:
+    figura = px.line(
+        df.sort_values("trimestre"),
+        x="trimestre",
+        y="receita",
+        markers=True,
+        title="02 · Faturamento trimestral",
+        labels={"trimestre": "Trimestre", "receita": "Receita (R$)"},
+        color_discrete_sequence=[COR_DADOS],
     )
+    figura.update_yaxes(tickprefix="R$ ")
+    return _ajustar_figura(figura)
+
+
+def grafico_receita_por_estado(df: pd.DataFrame) -> go.Figure:
+    ordenado = df.sort_values("receita_total", ascending=True)
     figura = px.bar(
-        top,
-        x="receita",
-        y="categoria",
+        ordenado,
+        x="receita_total",
+        y="estado",
         orientation="h",
-        title="02 · Receita por categoria",
-        labels={"receita": "Receita (R$)", "categoria": "Categoria"},
+        title="05 · Receita por estado",
+        labels={"receita_total": "Receita (R$)", "estado": "Estado"},
         color_discrete_sequence=[COR_DADOS],
     )
     figura.update_xaxes(tickprefix="R$ ")
@@ -188,30 +197,28 @@ def grafico_mix_pagamento(df: pd.DataFrame) -> go.Figure:
     return _ajustar_figura(figura)
 
 
-def grafico_ticket_por_uf(df: pd.DataFrame) -> go.Figure:
-    ordenado = df.sort_values("ticket_medio", ascending=True)
+def grafico_vendedores_por_estado(df: pd.DataFrame) -> go.Figure:
+    ordenado = df.sort_values("total_vendedores", ascending=True)
     figura = px.bar(
         ordenado,
-        x="ticket_medio",
-        y="uf",
+        x="total_vendedores",
+        y="estado",
         orientation="h",
-        title="06 · Ticket médio por UF",
-        labels={"ticket_medio": "Ticket médio (R$)", "uf": "UF"},
+        title="09 · Vendedores por estado",
+        labels={"total_vendedores": "Vendedores (pessoas)", "estado": "Estado"},
         color_discrete_sequence=[COR_DADOS],
     )
-    figura.update_xaxes(tickprefix="R$ ")
     return _ajustar_figura(figura)
 
 
-def grafico_clientes_por_uf(df: pd.DataFrame) -> go.Figure:
-    ordenado = df.sort_values("clientes", ascending=True)
-    figura = px.bar(
-        ordenado,
-        x="clientes",
-        y="uf",
-        orientation="h",
-        title="12 · Clientes por UF",
-        labels={"clientes": "Clientes (pessoas)", "uf": "UF"},
+def grafico_clientes_unicos_por_mes(df: pd.DataFrame) -> go.Figure:
+    figura = px.line(
+        df.sort_values("mes"),
+        x="mes",
+        y="clientes_unicos",
+        markers=True,
+        title="14 · Clientes únicos por mês",
+        labels={"mes": "Mês", "clientes_unicos": "Clientes (cadastros)"},
         color_discrete_sequence=[COR_DADOS],
     )
     return _ajustar_figura(figura)
@@ -232,25 +239,6 @@ def grafico_nota_por_categoria(df: pd.DataFrame) -> go.Figure:
         color_discrete_sequence=[COR_DADOS],
     )
     figura.update_xaxes(range=[0, 5])
-    return _ajustar_figura(figura)
-
-
-def grafico_concentracao_vendedores(df: pd.DataFrame) -> go.Figure:
-    figura = px.line(
-        df.sort_values("posicao"),
-        x="posicao",
-        y="pct_acumulado",
-        title="09 · Concentração de vendedores",
-        labels={"posicao": "Posição do vendedor", "pct_acumulado": "Receita acumulada (%)"},
-        color_discrete_sequence=[COR_DADOS],
-    )
-    figura.add_hline(
-        y=80,
-        line_dash="dash",
-        line_color="#6B7280",
-        annotation_text="80%",
-    )
-    figura.update_yaxes(ticksuffix="%")
     return _ajustar_figura(figura)
 
 
