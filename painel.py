@@ -13,11 +13,11 @@ escrever no banco enquanto o painel está aberto. O app lê os marts
 
 REGRAS DE NEGÓCIO
 -----------------
-O painel não deriva métricas: só apresenta valores existentes nos marts. Não
-faz agregações, junções ou operações aritméticas entre colunas. Assim, cada
-novo número exige sua definição no SQL, que é a fonte de verdade. A única
-exceção é a recompra, exibida como 100 menos ``pct_clientes`` da linha
-``pedidos_por_cliente = 1`` do mart ``recompra``, como autorizado na spec.
+O painel não agrega dados nem deriva métricas: só apresenta valores existentes
+nos marts. Não há agregações, junções ou operações aritméticas entre colunas.
+Assim, cada novo número exige sua definição no SQL, que é a fonte de verdade.
+A única exceção é a recompra, exibida como 100 menos ``pct_clientes`` da linha
+``pedidos_por_cliente = 1`` do mart ``recompra``.
 
 LAYOUT
 ------
@@ -36,8 +36,9 @@ UF (barras horizontais, maior no topo). A última faixa mostra clientes por UF
 ``pct_acumulado`` por ``posicao``, com linha tracejada em 80).
 
 Cada gráfico tem título com o número do mart, uma cor de dados e eixos com
-unidades. A linha tracejada de referência é necessária no gráfico de
-vendedores. O Streamlit usa ``width="stretch"`` para todos os gráficos.
+unidades. A referência tracejada de 80% é a exceção visual necessária no
+gráfico de vendedores. O Streamlit usa ``width="stretch"`` para todos os
+gráficos.
 
 FORMATAÇÃO E FIGURAS
 --------------------
@@ -74,6 +75,7 @@ de lock.
 """
 
 from collections.abc import Iterable
+from pathlib import Path
 
 import duckdb
 import pandas as pd
@@ -155,8 +157,11 @@ def grafico_vendas_mensais(df: pd.DataFrame) -> go.Figure:
 
 
 def grafico_top_categorias(df: pd.DataFrame) -> go.Figure:
-    top = df.sort_values("receita", ascending=False).head(10)
-    top = top.sort_values("receita", ascending=True)
+    top = (
+        df.sort_values("receita", ascending=False)
+        .head(10)
+        .sort_values("receita", ascending=True)
+    )
     figura = px.bar(
         top,
         x="receita",
@@ -213,8 +218,11 @@ def grafico_clientes_por_uf(df: pd.DataFrame) -> go.Figure:
 
 
 def grafico_nota_por_categoria(df: pd.DataFrame) -> go.Figure:
-    piores = df.sort_values("posicao_pior").head(10)
-    piores = piores.sort_values("posicao_pior", ascending=False)
+    piores = (
+        df.sort_values("posicao_pior")
+        .head(10)
+        .sort_values("posicao_pior", ascending=False)
+    )
     figura = px.scatter(
         piores,
         x="nota_media",
@@ -228,23 +236,24 @@ def grafico_nota_por_categoria(df: pd.DataFrame) -> go.Figure:
 
 
 def grafico_concentracao_vendedores(df: pd.DataFrame) -> go.Figure:
-    ordenado = df.sort_values("posicao")
     figura = px.line(
-        ordenado,
+        df.sort_values("posicao"),
         x="posicao",
         y="pct_acumulado",
         title="09 · Concentração de vendedores",
-        labels={
-            "posicao": "Posição do vendedor",
-            "pct_acumulado": "Receita acumulada (%)",
-        },
+        labels={"posicao": "Posição do vendedor", "pct_acumulado": "Receita acumulada (%)"},
         color_discrete_sequence=[COR_DADOS],
     )
     figura.add_hline(
         y=80,
         line_dash="dash",
-        line_color=COR_DADOS,
+        line_color="#6B7280",
         annotation_text="80%",
     )
     figura.update_yaxes(ticksuffix="%")
     return _ajustar_figura(figura)
+
+
+def banco_existe() -> bool:
+    """Verifica a presença do arquivo esperado na raiz de execução."""
+    return Path("olist.duckdb").is_file()

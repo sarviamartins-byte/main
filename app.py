@@ -45,6 +45,9 @@ def rotulo_mes(mes: date) -> str:
 
 st.set_page_config(page_title="Olist · visão da operação", layout="wide")
 
+if st.sidebar.button("Recarregar dados"):
+    carregar_dados.clear()
+
 if not Path("olist.duckdb").is_file():
     st.error(
         "O banco `olist.duckdb` não foi encontrado. "
@@ -64,15 +67,15 @@ except MartsAusentesError as erro:
 cabecalho, filtro = st.columns([1.5, 1])
 with cabecalho:
     st.title("Olist · visão da operação")
-    st.button("Recarregar dados", on_click=carregar_dados.clear)
 
-meses = dados["vendas_mensais"]["mes"].tolist()
+meses = dados["vendas_mensais"].sort_values("mes")["mes"].tolist()
 inicio_padrao = pd.Timestamp(date(2017, 1, 1))
 fim_padrao = pd.Timestamp(date(2018, 8, 1))
 if inicio_padrao not in meses or fim_padrao not in meses:
     st.error(
         "O mart `vendas_mensais` não contém os meses padrão "
-        "jan/2017 e ago/2018."
+        "jan/2017 e ago/2018. Gere as tabelas com "
+        "`uv run python -m pipeline.marts`."
     )
     st.stop()
 
