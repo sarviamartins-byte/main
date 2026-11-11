@@ -41,6 +41,14 @@ uv run python ui.py
 
 A interface fica disponível em <http://localhost:4213>. Encerre o processo com `Ctrl+C`. A primeira execução pode precisar baixar a extensão `ui` do DuckDB. Feche a interface antes de executar novamente qualquer etapa que escreva no banco, pois o DuckDB mantém um lock exclusivo no arquivo.
 
+Para gerar o relatório HTML estático com os marts existentes:
+
+```bash
+uv run python relatorio.py
+```
+
+O comando cria `relatorio.html` na raiz do projeto; abra o arquivo no navegador. Os gráficos carregam a biblioteca Plotly pelo CDN.
+
 ## Pipeline e dados
 
 O fluxo usa três schemas no banco:
@@ -80,6 +88,9 @@ As consultas SQL criam os seguintes marts:
 ├── raw/                      # Arquivos-fonte .csv.gz
 ├── sql/
 │   └── marts/                # Consultas analíticas versionadas
+├── painel.py                 # Leitura, formatação e gráficos reutilizáveis
+├── app.py                    # Painel Streamlit
+├── relatorio.py              # Geração do relatório HTML
 ├── ui.py                     # Inicialização da interface web do DuckDB
 ├── olist.duckdb              # Banco gerado pelo pipeline
 ├── pyproject.toml
