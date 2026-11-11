@@ -1,6 +1,6 @@
 # Análise de dados de e-commerce Olist
 
-Projeto de engenharia e análise de dados com o conjunto público de e-commerce da Olist. O pipeline carrega os arquivos CSV compactados, organiza os dados em camadas no DuckDB e produz tabelas analíticas para exploração na interface web do DuckDB.
+Projeto de engenharia e análise de dados com o conjunto público de e-commerce da Olist. O pipeline carrega os arquivos CSV compactados, organiza os dados em camadas no DuckDB, produz tabelas analíticas e disponibiliza um painel interativo em Streamlit.
 
 ## Requisitos
 
@@ -33,13 +33,19 @@ uv run python -m pipeline.marts
 
 O banco `olist.duckdb` é criado na raiz do projeto. As etapas podem ser reexecutadas: a ingestão substitui suas tabelas, a transformação recria as tabelas `refined` e a execução dos marts substitui o schema `marts`.
 
-Para abrir a interface web do DuckDB depois de gerar o banco:
+## Painel Streamlit
+
+Para abrir o painel analítico com os marts já gerados:
 
 ```bash
-uv run python ui.py
+uv run streamlit run app.py
 ```
 
-A interface fica disponível em <http://localhost:4213>. Encerre o processo com `Ctrl+C`. A primeira execução pode precisar baixar a extensão `ui` do DuckDB. Feche a interface antes de executar novamente qualquer etapa que escreva no banco, pois o DuckDB mantém um lock exclusivo no arquivo.
+A página usa `layout="wide"`, exibe os cartões, o faturamento por mês e os principais gráficos de categoria, UF, nota e concentração de vendedores. O filtro de período afeta somente o gráfico mensal; os cartões e os demais gráficos permanecem sobre o período inteiro.
+
+O botão `Recarregar dados` limpa o cache de leitura e faz a tela reabrir os marts do DuckDB. Se o banco ou algum mart necessário estiver ausente, a aplicação informa o problema e orienta para `uv run python -m pipeline.marts`.
+
+## Relatório HTML
 
 Para gerar o relatório HTML estático com os marts existentes:
 
@@ -48,6 +54,16 @@ uv run python relatorio.py
 ```
 
 O comando cria `relatorio.html` na raiz do projeto; abra o arquivo no navegador. Os gráficos carregam a biblioteca Plotly pelo CDN.
+
+## Interface web do DuckDB
+
+Para abrir a interface web do DuckDB depois de gerar o banco:
+
+```bash
+uv run python ui.py
+```
+
+A interface fica disponível em <http://localhost:4213>. Encerre o processo com `Ctrl+C`. A primeira execução pode precisar baixar a extensão `ui` do DuckDB. Feche a interface antes de executar novamente qualquer etapa que escreva no banco, pois o DuckDB mantém um lock exclusivo no arquivo.
 
 ## Pipeline e dados
 
@@ -93,9 +109,20 @@ As consultas SQL criam os seguintes marts:
 ├── relatorio.py              # Geração do relatório HTML
 ├── ui.py                     # Inicialização da interface web do DuckDB
 ├── olist.duckdb              # Banco gerado pelo pipeline
+├── test/                     # Testes unitários com pytest e coverage
 ├── pyproject.toml
 └── uv.lock
 ```
+
+## Testes
+
+A suíte usa `pytest` com `pytest-cov` e valida leitura, transformação, marts, painel e relatório sem depender do banco real do projeto.
+
+```bash
+uv run pytest --cov
+```
+
+A configuração está em `pyproject.toml` e exige cobertura mínima de 60% do total do projeto (exceto `app.py`, que é a tela Streamlit). Os testes criam um DuckDB temporário em `tmp_path` e geram CSVs gzip pequenos quando necessário.
 
 ## Validações e tratamento de falhas
 
@@ -103,5 +130,6 @@ As consultas SQL criam os seguintes marts:
 - A transformação verifica as tabelas de entrada, conversões de tipos e conflitos nas chaves antes de substituir a saída. Conversões inválidas e chaves repetidas com conteúdo diferente interrompem a etapa.
 - Os marts exigem todas as tabelas de `refined`. Cada consulta deve produzir ao menos uma linha; se alguma falhar ou retornar vazia, a transação é revertida e a última versão bem-sucedida dos marts é preservada.
 - As mensagens das etapas mostram contagens para facilitar a conferência. Valores nulos de origem não são preenchidos automaticamente.
+- O painel e o relatório usam marts prontos; se um mart requerido faltar, a execução para com mensagem clara e orientação para regenerar o banco.
 
 Se uma etapa indicar entradas ausentes, execute primeiro a etapa anterior na sequência do pipeline.
